@@ -180,9 +180,27 @@ Section Test.
 
   Definition Karatsuba_fullmul (bs1 bs2 : bits) : bits := low (size bs1).*2 (Karatsuba_fullmul' (Nat.log2_up (size bs1)) bs1 bs2).
 
-  (* Just a simple test *)
+  Fixpoint General_Karatsuba_fullmul' (n : nat) (n' : nat) (bs1' bs2' : bits) : bits :=
+    match n with
+    | 0 => full_mul bs1' bs2'
+    | m.+1 => if (size bs1' <= n') then full_mul bs1' bs2' else
+                let bs1 := if odd (size bs1') then (zext 1 bs1') else bs1' in
+                let bs2 := if odd (size bs2') then (zext 1 bs2') else bs2' in
+                let bs1_high := high_half bs1 in
+                let bs1_low := low_half bs1 in
+                let bs2_high := high_half bs2 in
+                let bs2_low := low_half bs2 in
+                let hi_hi := low (size bs1_high).*2 (General_Karatsuba_fullmul' m n' bs1_high bs2_high) in
+                let cross_term := low (size (bs1_high 0+# bs1_low)).*2 (General_Karatsuba_fullmul' m n' (bs1_high 0+# bs1_low) (bs2_high 0+# bs2_low)) in
+                let lo_lo := low (size bs1_low).*2 (General_Karatsuba_fullmul' m n' bs1_low bs2_low) in
+                lo_lo ++# ((cross_term --# (hi_hi 0+# lo_lo)) <<<# (size bs1)./2) ++# (hi_hi <<<# size bs1)
+    end.
+
+  Definition General_Karatsuba_fullmul (n' : nat) (bs1 bs2 : bits) : bits := low (size bs1).*2 (General_Karatsuba_fullmul' (Nat.log2_up (size bs1)) n' bs1 bs2).
+
+  (* Just a simple test 
   Compute to_Zpos (full_mul (from_Zpos 8192 546464946494564165146496446494654616649466446546541646495464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649) (from_Zpos 8192 165416541644964516515646464694654165516155464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649)).
-  Compute to_Zpos (Karatsuba_fullmul (from_Zpos 8192 546464946494564165146496446494654616649466446546541646495464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649) (from_Zpos 8192 165416541644964516515646464694654165516155464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649)).
+  Compute to_Zpos (Karatsuba_fullmul (from_Zpos 8192 546464946494564165146496446494654616649466446546541646495464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649) (from_Zpos 8192 165416541644964516515646464694654165516155464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649)). *)
   Lemma low_fullmul bs1 bs2: size bs1 == size bs2 -> low (size bs1).*2 (full_mul bs1 bs2) == full_mul bs1 bs2.
   Proof.
     move => Hsz. have Hsz_fullmul: (size bs1).*2 = size (full_mul bs1 bs2) by rewrite size_full_mul -(eqP Hsz) addnn.
@@ -540,9 +558,132 @@ Section Test.
     rewrite -(size_cat loa hia) -(size_cat lob hib) (eqP (high_low_half Ha_odd)) (eqP (high_low_half Hb_odd)) -(size_full_mul a b); apply to_Zpos_bounded.
   Qed.
 
+  Lemma General_Karatsuba_eq n a b:
+    size a == size b -> n > 2 -> n < (size a) -> ~~ odd (size a) ->
+      (full_mul (low_half a) (low_half b) ++#
+      (full_mul (high_half a 0+# low_half a) (high_half b 0+# low_half b) --# (full_mul (high_half a) (high_half b) 0+# full_mul (low_half a) (low_half b)) <<<# (size a)./2) ++#
+      (full_mul (high_half a) (high_half b) <<<# size a))
+    = full_mul a b.
+  Proof.
+    move => Hsz Hnge2 Hszn Ha_odd. have Hb_odd: ~~ odd (size b) by rewrite -(eqP Hsz) Ha_odd. rewrite -{9}(eqP (high_low_half Ha_odd)) -{7}(eqP (high_low_half Hb_odd)).
+    set hia := high_half a; set hib := high_half b; set loa := low_half a; set lob := low_half b.
+    assert (Hsz_all: maxn (maxn (size loa + size lob) (maxn (minn (size hia).+1 (size loa).+1 + minn (size hib).+1 (size lob).+1) (minn (size hia + size hib).+1 (size loa + size lob).+1) + (size a)./2)) (size hia + size hib + size a) = size loa + size hia + (size lob + size hib)).
+    {
+      rewrite !(size_high_half a) !(size_high_half b) !(size_low_half a) !(size_low_half b) -!(eqP Hsz) !addnn.
+      have Hsza: ((size a)./2).*2 = size a by rewrite -{2}(odd_double_half (size a)) (negbTE Ha_odd). rewrite Hsza !minnE !subnn !subn0 doubleS Hsza.
+      have H: (size a).+1 <= (size a).+2 by done. rewrite (maxn_idPl H). rewrite -add2n addnCAC addnACl add2n.
+      have H0: (size a)./2.+2 <= size a. rewrite -{2}Hsza -addnn -addn2 (leq_add2l (size a)./2 2 (size a)./2) -ltn_double Hsza -muln2. have H1: 1 * 2 < n by done. by rewrite (ltn_trans H1 Hszn).
+      rewrite -(leq_add2l (size a) (size a)./2.+2 (size a)) in H0. by rewrite (maxn_idPr (leq_addr (size a)./2.+2 (size a))) (maxn_idPr H0) addnn.
+    }
+    apply to_Zpos_inj_ss; first by rewrite !size_long_addB !size_zend (size_long_subB (full_mul (hia 0+# loa) (hib 0+# lob)) (full_mul hia hib 0+# full_mul loa lob)) !size_full_mul !size_zext_addB !size_full_mul (size_cat loa hia) (size_cat lob hib); apply Hsz_all. rewrite to_Zpos_full_mul 2!to_Zpos_cat Z.mul_add_distr_r !Z.mul_add_distr_l !size_low_half -!(eqP Hsz).
+    set Zpos_hia := (to_Zpos hia * 2 ^ Z.of_nat (size a)./2)%Z; set Zpos_hib := (to_Zpos hib * 2 ^ Z.of_nat (size a)./2)%Z; set Zpos_loa := to_Zpos loa; set Zpos_lob := to_Zpos lob.
+    have Hsza_half: Z.of_nat (size a) = (Z.of_nat (size a)./2 + Z.of_nat (size a)./2)%Z by rewrite -Nat2Z.inj_add -{1}(odd_double_half (size a)) (negbTE Ha_odd) /= add0n -addnn.
+    have loa_bounded: (Zpos_loa < 2 ^ Z.of_nat (size a)./2)%Z by rewrite -size_low_half; apply to_Zpos_bounded.
+    have lob_bounded: (Zpos_lob < 2 ^ Z.of_nat (size a)./2)%Z by rewrite (eqP Hsz) -size_low_half; apply to_Zpos_bounded.
+    have hia_bounded: (Zpos_hia < 2 ^ Z.of_nat (size a))%Z. rewrite Hsza_half /Zpos_hia Z.pow_add_r; [| apply Zle_0_nat | apply Zle_0_nat]. apply Zmult_gt_0_lt_compat_r; [|rewrite -size_high_half /hia; apply to_Zpos_bounded]. apply Z.lt_gt. apply pow2_nat2z_gt0.
+    have hib_bounded: (Zpos_hib < 2 ^ Z.of_nat (size a))%Z. rewrite Hsza_half {1}(eqP Hsz) /Zpos_hia Z.pow_add_r; [| apply Zle_0_nat | apply Zle_0_nat]. apply Zmult_gt_0_lt_compat_r; [|rewrite -size_high_half /hia; apply to_Zpos_bounded]. apply Z.lt_gt. apply pow2_nat2z_gt0.
+    have loalob_bounded: (Zpos_loa * Zpos_lob < 2 ^ Z.of_nat (size a))%Z. rewrite Hsza_half Z.pow_add_r; [| apply Zle_0_nat | apply Zle_0_nat]. apply Z.mul_lt_mono_nonneg; [apply to_Zpos_ge0 | apply loa_bounded| apply to_Zpos_ge0 | apply lob_bounded].
+    have hialob_bounded: (Zpos_hia * Zpos_lob < 2 ^ (Z.of_nat (size a) + Z.of_nat (size a)./2))%Z. rewrite Z.pow_add_r; [| apply Zle_0_nat | apply Zle_0_nat]. apply Z.mul_lt_mono_nonneg; [ apply Z.mul_nonneg_nonneg; [apply to_Zpos_ge0 |apply Z.lt_le_incl; apply pow2_nat2z_gt0]| apply hia_bounded| apply to_Zpos_ge0 | apply lob_bounded].
+    have hibloa_bounded: (Zpos_hib * Zpos_loa < 2 ^ (Z.of_nat (size a) + Z.of_nat (size a)./2))%Z. rewrite Z.pow_add_r; [| apply Zle_0_nat | apply Zle_0_nat]. apply Z.mul_lt_mono_nonneg; [ apply Z.mul_nonneg_nonneg; [apply to_Zpos_ge0 |apply Z.lt_le_incl; apply pow2_nat2z_gt0]| apply hib_bounded| apply to_Zpos_ge0 | apply loa_bounded].
+    have hiahib_bounded: (Zpos_hia * Zpos_hib < 2 ^ (Z.of_nat (size a) + Z.of_nat (size a)))%Z. rewrite Z.pow_add_r; [| apply Zle_0_nat | apply Zle_0_nat]. apply Z.mul_lt_mono_nonneg; [apply Z.mul_nonneg_nonneg; [apply to_Zpos_ge0 |apply Z.lt_le_incl; apply pow2_nat2z_gt0]| apply hia_bounded| apply Z.mul_nonneg_nonneg; [apply to_Zpos_ge0 |apply Z.lt_le_incl; apply pow2_nat2z_gt0] | apply hib_bounded].
+    pose proof (to_Zpos_full_mul loa lob) as Zpos_lolo.
+    have Zpos_hihi: to_Zpos (full_mul hia hib <<<# size a) = (Zpos_hia * Zpos_hib)%Z. rewrite to_Zpos_zend to_Zpos_full_mul /Zpos_hia /Zpos_hib Zexp_distr. rewrite -Nat2Z.inj_add -{1}(odd_double_half (size a)) -addnn (negbTE Ha_odd) //=. apply Zle_0_nat. apply Zle_0_nat.
+    have Zpos_cross: to_Zpos (full_mul (hia 0+# loa) (hib 0+# lob) --# (full_mul hia hib 0+# full_mul loa lob) <<<# (size a)./2) = (Zpos_hia * Zpos_lob + Zpos_hib * Zpos_loa)%Z.
+    {
+      rewrite to_Zpos_zend to_Zpos_sub_long_subB !to_Zpos_full_mul !to_Zpos_zext_addB. rewrite 2!to_Zpos_full_mul Z.sub_add_distr Zmul_cross Z.mul_add_distr_r {1}Z.mul_shuffle0; apply Z.add_cancel_l; by rewrite Zmult_assoc_reverse Z.mul_comm /Zpos_hib.
+      by rewrite !size_full_mul !size_low_half !size_high_half. by rewrite size_low_half size_high_half. by rewrite size_low_half size_high_half.
+      rewrite !to_Zpos_full_mul Z.mul_add_distr_r !Z.mul_add_distr_l Zplus_assoc_reverse. apply (Zplus_le_compat_l _ _ (to_Zpos hia * to_Zpos hib)). rewrite Z.add_assoc -{1}(Z.add_0_l (to_Zpos loa * to_Zpos lob)). apply Z.add_le_mono.
+      apply Z.add_nonneg_nonneg; apply Z.mul_nonneg_nonneg; apply to_Zpos_ge0. by apply Z.eq_le_incl. by rewrite size_low_half size_high_half. by rewrite size_low_half size_high_half. by rewrite !size_full_mul !size_low_half !size_high_half.
+    }
+    have Hgoal: (to_Zpos loa * to_Zpos lob + to_Zpos (full_mul (hia 0+# loa) (hib 0+# lob) --# (full_mul hia hib 0+# full_mul loa lob) <<<# (size a)./2) < 2 ^ Z.of_nat (maxn (size (full_mul loa lob)) (size (full_mul (hia 0+# loa) (hib 0+# lob) --# (full_mul hia hib 0+# full_mul loa lob) <<<# (size a)./2))))%Z.
+    {
+      rewrite Zpos_cross size_zend size_long_subB !size_full_mul !size_zext_addB !size_full_mul !size_low_half !size_high_half -!(eqP Hsz) !minnE !subnn !subn0 !addnn.
+      have Hsza: ((size a)./2).*2 = size a by rewrite -{2}(odd_double_half (size a)) (negbTE Ha_odd). rewrite doubleS !Hsza. have Hadd2: (size a).+1 <= (size a).+2 by done. rewrite (maxn_idPl Hadd2).
+      have H0: size a <= (size a).+2 + (size a)./2 by rewrite -add2n addnACl leq_addr. rewrite (maxn_idPr H0) -addn2 addnACl addC {1}Nat2Z.inj_add //= addC Zpower_exp; last by done.
+      pose proof (Z.add_lt_mono _ _ _ _ hialob_bounded hibloa_bounded) as H1. pose proof (Z.add_lt_mono _ _ _ _ loalob_bounded H1) as H2.
+      have H3: (2 ^ Z.of_nat (size a) + (2 ^ (Z.of_nat (size a) + Z.of_nat (size a)./2) + 2 ^ (Z.of_nat (size a) + Z.of_nat (size a)./2)) < 2 ^ Z.of_nat (size a + (size a)./2) * 2 ^ 2)%Z.
+      {
+        rewrite Zred_factor1 Z.pow_2_r Zmult_assoc -(Zred_factor1 (2 ^ Z.of_nat (size a + (size a)./2) * 2)) Nat2Z.inj_add; apply Z.add_lt_mono_r.
+        rewrite Zpower_exp; [| apply Z.le_ge; apply Zle_0_nat | apply Z.le_ge; apply Zle_0_nat]. rewrite {1}(Zred_factor0 (2 ^ Z.of_nat (size a))) Zmult_assoc_reverse.
+        apply Zmult_lt_compat_l; [ apply pow2_nat2z_gt0 |]. rewrite Z.mul_comm; apply Z.lt_1_mul_pos; [done | apply pow2_nat2z_gt0].
+      }
+      apply (Z.lt_trans _ _ _ H2 H3). apply Z.le_ge; apply Zle_0_nat.
+    }
+    rewrite !to_Zpos_add_long_addB_bounded Zpos_lolo. rewrite 2!Zplus_assoc_reverse; apply Z.add_cancel_l. rewrite Zplus_assoc Zpos_hihi; apply Z.add_cancel_r. rewrite Zpos_cross Z.add_comm; apply Z.add_cancel_r. apply Z.mul_comm.
+    apply Hgoal. 2 :{ apply Hgoal. }
+
+    rewrite Zpos_cross Z.add_assoc Zpos_hihi (Z.mul_comm Zpos_hib Zpos_loa) -Z.mul_add_distr_r Zplus_assoc_reverse -Z.mul_add_distr_r -Z.mul_add_distr_l.
+    rewrite /Zpos_hia -(to_Zpos_zend hia (size a)./2) (to_Zpos_high_low_half Ha_odd) /Zpos_hib -(to_Zpos_zend hib (size a)./2) {1}(eqP Hsz) (to_Zpos_high_low_half Hb_odd) -(to_Zpos_full_mul a b).
+    rewrite !size_long_addB !size_zend (size_long_subB (full_mul (hia 0+# loa) (hib 0+# lob)) (full_mul hia hib 0+# full_mul loa lob)) !size_full_mul !size_zext_addB !size_full_mul Hsz_all.
+    rewrite -(size_cat loa hia) -(size_cat lob hib) (eqP (high_low_half Ha_odd)) (eqP (high_low_half Hb_odd)) -(size_full_mul a b); apply to_Zpos_bounded.
+  Qed.
+
   (*---------------------------------------------------------------------------
     Properties of multiplication based on Karatsuba algorithm
     ---------------------------------------------------------------------------*)
+
+  Lemma General_Karatsuba'_full_mul n n' a b: n' > 2 -> size a == size b -> low (size a).*2 (General_Karatsuba_fullmul' n n' a b) == full_mul a b.
+  Proof.
+    move: a b. induction n.
+    - move => a b Hn' Hsz. exact: low_fullmul Hsz.
+    - move => a b Hn' Hsz.
+      pose proof (orP (leq_gtn_total (size a) n')) as Hszn'. elim: Hszn' => Hszn'.
+      + rewrite /General_Karatsuba_fullmul' Hszn'. exact: low_fullmul Hsz.
+      + rewrite ltnNge in Hszn'. rewrite /General_Karatsuba_fullmul' (negbTE Hszn'). rewrite -ltnNge in Hszn'.
+        pose proof (orP (orbN (odd (size a)))) as Ha_odd. elim: Ha_odd => Ha_odd.
+        2 :{
+          have Hb_odd: ~~ odd (size b) by rewrite -(eqP Hsz) Ha_odd. rewrite (negbTE Ha_odd) (negbTE Hb_odd).
+          have Hlo_lo: size (low_half a) == size (low_half b) by rewrite (size_low_half a) (size_low_half b) (eqP Hsz).
+          have Hhi_hi: size (high_half a) == size (high_half b) by rewrite (size_high_half a) (size_high_half b) (eqP Hsz).
+          have Hcross: size (high_half a 0+# low_half a) == size (high_half b 0+# low_half b) by rewrite !size_zext_addB (eqP Hlo_lo) (eqP Hhi_hi).
+          rewrite (eqP (IHn (low_half a) (low_half b) Hn' Hlo_lo)) (eqP (IHn (high_half a) (high_half b) Hn' Hhi_hi)) (eqP (IHn (high_half a 0+# low_half a) (high_half b 0+# low_half b) Hn' Hcross)).
+          rewrite (General_Karatsuba_eq Hsz Hn' Hszn' Ha_odd). exact: (low_fullmul Hsz).
+        }
+        have Hb_odd: odd (size b) by rewrite -(eqP Hsz) Ha_odd. rewrite Ha_odd Hb_odd.
+        set a' := zext 1 a. set b' := zext 1 b.
+        have Hsz': size a' == size b' by rewrite /a' /b' !size_zext !addn1.
+        have Hszn'': n' < size a' by rewrite /a' size_zext addn1 ltnS (ltnW Hszn').
+        have Ha_odd': ~~ odd(size a') by rewrite /a' size_zext addn1 oddS Bool.negb_involutive.
+        have Hlo_lo: size (low_half a') == size (low_half b') by rewrite (size_low_half a') (size_low_half b') (eqP Hsz').
+        have Hhi_hi: size (high_half a') == size (high_half b') by rewrite (size_high_half a') (size_high_half b') (eqP Hsz').
+        have Hcross: size (high_half a' 0+# low_half a') == size (high_half b' 0+# low_half b') by rewrite !size_zext_addB (eqP Hlo_lo) (eqP Hhi_hi).
+        rewrite (eqP (IHn (low_half a') (low_half b') Hn' Hlo_lo)) (eqP (IHn (high_half a') (high_half b') Hn' Hhi_hi)) (eqP (IHn (high_half a' 0+# low_half a') (high_half b' 0+# low_half b') Hn' Hcross)).
+        rewrite (General_Karatsuba_eq Hsz' Hn' Hszn'' Ha_odd').
+        have Hfull_mul: full_mul a' b' == (zext 2 (full_mul a b)). rewrite -to_nat_inj_ss; [by rewrite to_nat_zext !to_nat_full_mul' /a' /b' !to_nat_zext | by rewrite /a' /b' size_zext !size_full_mul !size_zext !addn1 addSnnS -addn2 (addC (size a) (size b)) addnCAC -addnACl].
+        by rewrite (eqP Hfull_mul) -addnn {2}(eqP Hsz) -size_full_mul low_zext.
+  Qed.
+
+  Lemma General_Karatsuba_full_mul n' a b: n' > 2 -> size a == size b -> General_Karatsuba_fullmul n' a b == full_mul a b.
+  Proof. rewrite /General_Karatsuba_fullmul; apply General_Karatsuba'_full_mul. Qed.
+
+  Lemma test n a b: size a == size b -> (Karatsuba_fullmul' n a b) == (General_Karatsuba_fullmul' n 64 a b).
+  Proof.
+    move: a b; induction n; first by done. move => a b Hsz; rewrite /General_Karatsuba_fullmul' /Karatsuba_fullmul'.
+    pose proof (orP (leq_gtn_total (size a) 64)) as Hsz64. elim: Hsz64 => Hsz64; first by rewrite Hsz64.
+    rewrite ltnNge in Hsz64. rewrite (negbTE Hsz64). fold Karatsuba_fullmul' General_Karatsuba_fullmul'.
+    rewrite -!(eqP Hsz). pose proof (orP (orbN (odd (size a)))) as Ha_odd. elim: Ha_odd => Ha_odd.
+    2:{
+      rewrite (negbTE Ha_odd).
+      have Hlo_lo: size (low_half a) == size (low_half b) by rewrite (size_low_half a) (size_low_half b) (eqP Hsz).
+      have Hhi_hi: size (high_half a) == size (high_half b) by rewrite (size_high_half a) (size_high_half b) (eqP Hsz).
+      have Hcross: size (high_half a 0+# low_half a) == size (high_half b 0+# low_half b) by rewrite !size_zext_addB (eqP Hlo_lo) (eqP Hhi_hi).
+      by rewrite (eqP (IHn (low_half a) (low_half b) Hlo_lo)) (eqP (IHn (high_half a) (high_half b) Hhi_hi)) (eqP (IHn (high_half a 0+# low_half a) (high_half b 0+# low_half b) Hcross)).
+    }
+    rewrite Ha_odd.
+    set a' := zext 1 a. set b' := zext 1 b.
+    have Hsz': size a' == size b' by rewrite /a' /b' !size_zext !addn1.
+    have Ha_odd': ~~ odd(size a') by rewrite /a' size_zext addn1 oddS Bool.negb_involutive.
+    have Hlo_lo: size (low_half a') == size (low_half b') by rewrite (size_low_half a') (size_low_half b') (eqP Hsz').
+    have Hhi_hi: size (high_half a') == size (high_half b') by rewrite (size_high_half a') (size_high_half b') (eqP Hsz').
+    have Hcross: size (high_half a' 0+# low_half a') == size (high_half b' 0+# low_half b') by rewrite !size_zext_addB (eqP Hlo_lo) (eqP Hhi_hi).
+    by rewrite (eqP (IHn (low_half a') (low_half b') Hlo_lo)) (eqP (IHn (high_half a') (high_half b') Hhi_hi)) (eqP (IHn (high_half a' 0+# low_half a') (high_half b' 0+# low_half b') Hcross)).
+  Qed.
+
+  Lemma test2 a b: size a == size b -> Karatsuba_fullmul a b == General_Karatsuba_fullmul 64 a b.
+  Proof.
+    move => Hsz; rewrite /General_Karatsuba_fullmul /Karatsuba_fullmul.
+    pose proof (eqP (test (Nat.log2_up (size a)) Hsz)); by rewrite H.
+  Qed.
 
   Lemma Karatsuba'_full_mul n a b: size a == size b -> low (size a).*2 (Karatsuba_fullmul' n a b) == full_mul a b.
   Proof.
@@ -576,6 +717,9 @@ Section Test.
 
   Lemma Karatsuba_full_mul a b: size a == size b -> Karatsuba_fullmul a b == full_mul a b.
   Proof. rewrite /Karatsuba_fullmul; apply Karatsuba'_full_mul. Qed.
+
+  Compute to_Zpos (Karatsuba_fullmul (from_Zpos 8192 546464946494564165146496446494654616649466446546541646495464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649) (from_Zpos 8192 165416541644964516515646464694654165516155464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649)).
+  Compute to_Zpos (General_Karatsuba_fullmul 64 (from_Zpos 8192 546464946494564165146496446494654616649466446546541646495464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649) (from_Zpos 8192 165416541644964516515646464694654165516155464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649)).
 
   (*---------------------------------------------------------------------------
     Other tries (unrelated to Karatsuba algorithm) (imcomplete)
