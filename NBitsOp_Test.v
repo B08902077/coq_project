@@ -718,8 +718,9 @@ Section Test.
   Lemma Karatsuba_full_mul a b: size a == size b -> Karatsuba_fullmul a b == full_mul a b.
   Proof. rewrite /Karatsuba_fullmul; apply Karatsuba'_full_mul. Qed.
 
+  (* Compute test
   Compute to_Zpos (Karatsuba_fullmul (from_Zpos 8192 546464946494564165146496446494654616649466446546541646495464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649) (from_Zpos 8192 165416541644964516515646464694654165516155464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649)).
-  Compute to_Zpos (General_Karatsuba_fullmul 64 (from_Zpos 8192 546464946494564165146496446494654616649466446546541646495464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649) (from_Zpos 8192 165416541644964516515646464694654165516155464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649)).
+  Compute to_Zpos (General_Karatsuba_fullmul 64 (from_Zpos 8192 546464946494564165146496446494654616649466446546541646495464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649) (from_Zpos 8192 165416541644964516515646464694654165516155464649464945641651464964464946546166494664465465416464954646494649456416514649644649465461664946644654654164649)). *)
 
   (*---------------------------------------------------------------------------
     Other tries (unrelated to Karatsuba algorithm) (imcomplete)
@@ -755,7 +756,7 @@ Section Test.
     by rewrite -addn1 Nat2Z.inj_add //= Z.add_assoc Z.add_opp_r Z.add_simpl_l.
   Qed.
 
-  Lemma full_mul_add_distr bs1 bs2: size bs1 == size bs2 -> (to_Zpos (full_mul bs1 bs2) = to_Zpos bs1 * (msb bs2) * 2 ^ Z.of_nat (size bs1).-1 + to_Zpos bs1 * to_Zpos (low (size bs1).-1 bs2))%Z.
+  Lemma HanTing_FirstProblem bs1 bs2: size bs1 == size bs2 -> (to_Zpos (full_mul bs1 bs2) = to_Zpos bs1 * (msb bs2) * 2 ^ Z.of_nat (size bs1).-1 + to_Zpos bs1 * to_Zpos (low (size bs1).-1 bs2))%Z.
   Proof. move => Hsz; rewrite to_Zpos_full_mul (to_Zpos_msb bs2) Z.mul_add_distr_l !(eqP Hsz) Z.mul_assoc //=. Qed.
 
   (* about abs in Z *)
@@ -851,7 +852,7 @@ Section Test.
       apply (Z.le_lt_trans _ _ _ Ha Hc).
   Qed.
 
-  Lemma test u v F G:
+  Lemma HanTing_SecondProblem u v F G:
     (Z.abs u + Z.abs v <= 2 ^ 62)%Z -> (- 2 ^ 62 < u + v)%Z ->
     (- 2 ^ 255 <= F < 2 ^ 255)%Z -> (- 2 ^ 255 <= G < 2 ^ 255)%Z -> (-2^317 <= u * F + v * G < 2^317)%Z.
   Proof.
@@ -891,7 +892,7 @@ Section Test.
       apply Z.opp_le_mono in HleF; apply Z.opp_le_mono in HleG. apply Z.max_lub; try done.
   Qed.
 
-  (* about long_udivB *)
+  (* about long_udivB; unfinished *)
 
   Definition long_udivB (bs1 bs2 : bits) : bits * bits := udivB (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2).
   Definition long_udivB' (bs1 bs2 : bits) : bits := (long_udivB bs1 bs2).1.
@@ -979,32 +980,3 @@ Section Test.
     split; intros. 2 :{ move: H => [H0 Hn]; by rewrite (to_Zpos_from_Zpos_bounded H0 Hn). }
     rewrite -H to_Zpos_from_Zpos. apply Z.mod_pos_bound; apply Z.pow_pos_nonneg; [done | apply Zle_0_nat]. rewrite -H; apply to_Zpos_ge0.
   Qed.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
