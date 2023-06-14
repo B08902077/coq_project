@@ -756,7 +756,20 @@ Section Test.
     by rewrite -addn1 Nat2Z.inj_add //= Z.add_assoc Z.add_opp_r Z.add_simpl_l.
   Qed.
 
-  Lemma HanTing_FirstProblem bs1 bs2: size bs1 == size bs2 -> (to_Zpos (full_mul bs1 bs2) = to_Zpos bs1 * (msb bs2) * 2 ^ Z.of_nat (size bs1).-1 + to_Zpos bs1 * to_Zpos (low (size bs1).-1 bs2))%Z.
+  (*
+  前提是: register 都是 uint64, rbx = rbxh * 2^63 + rbxl (rbxh 是 rbx 的 msb，rbxl 是底下 63 bits)
+  經過一個 umull rdx rax r12 rbx; 的乘法的計算後，
+  boolector 證的出:
+  rax + rdx * 2^64 = r12 * ((rbxh * 2^63) + rbxl)
+  這邊長度都補零補到128 bits。
+
+  卻證不出:
+  rax + rdx * 2^64 = (r12 * rbxh * 2^63) + (r12 * rbxl)
+
+  這個看起來就只是一個把加法提出來的問題而已，應該用 coq 證不會很複雜。
+  *)
+
+  Lemma HanTing_1st_Problem bs1 bs2: size bs1 == size bs2 -> (to_Zpos (full_mul bs1 bs2) = to_Zpos bs1 * (msb bs2) * 2 ^ Z.of_nat (size bs1).-1 + to_Zpos bs1 * to_Zpos (low (size bs1).-1 bs2))%Z.
   Proof. move => Hsz; rewrite to_Zpos_full_mul (to_Zpos_msb bs2) Z.mul_add_distr_l !(eqP Hsz) Z.mul_assoc //=. Qed.
 
   (* about abs in Z *)
@@ -852,7 +865,36 @@ Section Test.
       apply (Z.le_lt_trans _ _ _ Ha Hc).
   Qed.
 
-  Lemma HanTing_SecondProblem u v F G:
+  (*
+  這個是我在驗證 divstep64 時實際遇到的問題，我也還沒解決:
+
+  出現的變數有:
+  u, v, q, r 是 sint64，
+  F, G 是 sint256
+
+  可以用的 premise 有:
+  (b-1)
+  -2**62 < u <= 2**62,
+  -2**62 < v <= 2**62,
+  -2**62 < q <= 2**62,
+  -2**62 < r <= 2**62,
+  (b-2)
+  |u| + |v| <=2**62,
+  u + v > -2**62
+  (b-3) 這件事不知道你可不可以當它 trivial ，因為 F, G 是 sint256
+  -2**255 <= F < 2**255,
+  -2**255 <= G < 2**255
+  我想用 boolecor 證的是:
+  (a)
+  -2**317 <= u * F + v * G < 2**317, 
+  -2**317 <= q * F + r * G < 2**317
+  這邊長度都 sign extension 到 320 bits
+
+  不過 boolector 證不出來，也就是說 boolector 證不出 and[(b-1), (b-2), (b-3)] implies (a)
+  這邊因為有絕對值，我猜用 coq 應該分成四種 case 就有辦法證了，麻煩幫我試試看。
+  *)
+
+  Lemma HanTing_2nd_Problem u v F G:
     (Z.abs u + Z.abs v <= 2 ^ 62)%Z -> (- 2 ^ 62 < u + v)%Z ->
     (- 2 ^ 255 <= F < 2 ^ 255)%Z -> (- 2 ^ 255 <= G < 2 ^ 255)%Z -> (-2^317 <= u * F + v * G < 2^317)%Z.
   Proof.
