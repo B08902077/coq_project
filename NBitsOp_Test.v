@@ -934,6 +934,41 @@ Section Test.
       apply Z.opp_le_mono in HleF; apply Z.opp_le_mono in HleG. apply Z.max_lub; try done.
   Qed.
 
+  (*
+  ( (|u| + |v| <= 2**60) and (-2^255 < F, G < 2**255) ) implies
+  -2**315 < uF+vG < 2**315
+  *)
+
+  Lemma HanTing_3rd_Problem u v F G:
+    (Z.abs u + Z.abs v <= 2 ^ 60)%Z -> (- 2 ^ 255 < F < 2 ^ 255)%Z -> (- 2 ^ 255 < G < 2 ^ 255)%Z -> (-2^315 < u * F + v * G < 2^315)%Z.
+  Proof.
+    pose proof Z_abs_le as Hpos; pose proof Z_abs_neg_le as Hneg. move => Habs_add_le [HltF HFlt] [HltG HGlt].
+    pose proof (Z_lt_lt_abs HltF HFlt) as HFabs; rewrite Z.abs_opp Z.max_id in HFabs.
+    pose proof (Z_lt_lt_abs HltG HGlt) as HGabs; rewrite Z.abs_opp Z.max_id in HGabs.
+    pose proof (Z.max_lub_lt (Z.abs F) (Z.abs G) (Z.abs (2 ^ 255)) HFabs HGabs) as HmaxFGabs_lt.
+    pose proof (Z.add_nonneg_nonneg (Z.abs u) (Z.abs v) (Z.abs_nonneg u) (Z.abs_nonneg v)) as Habs_add_ge0.
+    pose proof (Z.le_trans _ _ _ (Z.abs_nonneg F) (Z.le_max_l (Z.abs F) (Z.abs G))) as HmaxFGabs_ge0.
+    have Hrange: ((Z.abs u + Z.abs v) * Z.max (Z.abs F) (Z.abs G) < 2 ^ 315)%Z.
+    {
+      case: (Zle_lt_or_eq _ _ Habs_add_ge0). 2 :{ move => Habs_eq0; rewrite -Habs_eq0 Z.mul_0_l //. }
+      case: (Zle_lt_or_eq _ _ HmaxFGabs_ge0). 2 :{ move => HmaxFGabs_eq0; rewrite -HmaxFGabs_eq0 Z.mul_0_r //. }
+      move => HmaxFGabs_gt0 Habs_add_gt0. apply (Zmult_lt_compat2 (Z.abs u + Z.abs v) (Z.max (Z.abs F) (Z.abs G)) (2 ^ 60)%Z (2 ^ 255)%Z).
+      split. apply Habs_add_gt0. apply Habs_add_le. split. apply HmaxFGabs_gt0. apply HmaxFGabs_lt.
+    }
+    split.
+    2 :{
+      apply (Z.le_lt_trans _ ((Z.abs u + Z.abs v) * Z.max (Z.abs F) (Z.abs G))); try apply Z_mul_add_max; try apply Hrange.
+    }
+    apply (Z.lt_le_trans (- 2 ^ 315)%Z (-((Z.abs u + Z.abs v) * Z.max (Z.abs F) (Z.abs G)))%Z); last by apply Z_mul_add_min.
+    try apply Z.opp_lt_mono; rewrite 2! Z.opp_involutive; apply Hrange.
+  Qed.
+
+  (*
+  多了一個變數，range 也不太一樣，要證明
+  ( (|u| + |v| <= 2**60) and (-2^29 < F, G < 2**255+2**29) and (0 <= d < 2^60) ) implies
+  -2**316 < uF + vG + d*(2**255 - 19) < 2**316
+  *)
+
   (* about long_udivB; unfinished *)
 
   Definition long_udivB (bs1 bs2 : bits) : bits * bits := udivB (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2).
