@@ -952,12 +952,11 @@ Section Test.
     {
       case: (Zle_lt_or_eq _ _ Habs_add_ge0). 2 :{ move => Habs_eq0; rewrite -Habs_eq0 Z.mul_0_l //. }
       case: (Zle_lt_or_eq _ _ HmaxFGabs_ge0). 2 :{ move => HmaxFGabs_eq0; rewrite -HmaxFGabs_eq0 Z.mul_0_r //. }
-      move => HmaxFGabs_gt0 Habs_add_gt0. apply (Zmult_lt_compat2 (Z.abs u + Z.abs v) (Z.max (Z.abs F) (Z.abs G)) (2 ^ 60)%Z (2 ^ 255)%Z).
-      split. apply Habs_add_gt0. apply Habs_add_le. split. apply HmaxFGabs_gt0. apply HmaxFGabs_lt.
+      move => HmaxFGabs_gt0 Habs_add_gt0. apply (Zmult_lt_compat2 (Z.abs u + Z.abs v) (Z.max (Z.abs F) (Z.abs G)) (2 ^ 60)%Z (2 ^ 255)%Z); try done; try done.
     }
     split.
     2 :{
-      apply (Z.le_lt_trans _ ((Z.abs u + Z.abs v) * Z.max (Z.abs F) (Z.abs G))); try apply Z_mul_add_max; try apply Hrange.
+      apply (Z.le_lt_trans _ ((Z.abs u + Z.abs v) * Z.max (Z.abs F) (Z.abs G))); try apply Z_mul_add_max; apply Hrange.
     }
     apply (Z.lt_le_trans (- 2 ^ 315)%Z (-((Z.abs u + Z.abs v) * Z.max (Z.abs F) (Z.abs G)))%Z); last by apply Z_mul_add_min.
     apply Z.opp_lt_mono; rewrite 2! Z.opp_involutive; apply Hrange.
@@ -984,23 +983,21 @@ Section Test.
     {
       case: (Zle_lt_or_eq _ _ Habs_add_ge0). 2 :{ move => Habs_eq0; rewrite -Habs_eq0 Z.mul_0_l //. }
       case: (Zle_lt_or_eq _ _ HmaxFGabs_ge0). 2 :{ move => HmaxFGabs_eq0; rewrite -HmaxFGabs_eq0 Z.mul_0_r //. }
-      move => HmaxFGabs_gt0 Habs_add_gt0. apply (Zmult_lt_compat2 (Z.abs u + Z.abs v) (Z.max (Z.abs F) (Z.abs G)) (2 ^ 60)%Z (2 ^ 255 + 2^29)%Z).
-      split. apply Habs_add_gt0. apply Habs_add_le. split. apply HmaxFGabs_gt0. apply HmaxFGabs_lt.
+      move => HmaxFGabs_gt0 Habs_add_gt0. apply (Zmult_lt_compat2 (Z.abs u + Z.abs v) (Z.max (Z.abs F) (Z.abs G)) (2 ^ 60)%Z (2 ^ 255 + 2^29)%Z); try done; try done.
     }
     have Hd_max: (y <= 2 ^ 315 - 2 ^ 255 - 19 * 2 ^ 60 + 19)%Z.
     {
-      try by apply (Z.mul_le_mono_nonneg d  (2^60-1)%Z (2^255 - 19)%Z (2^255 - 19)%Z HleD (Zlt_succ_le d (2^60-1)%Z HDlt)).
+      by apply (Z.mul_le_mono_nonneg d  (2^60-1)%Z (2^255 - 19)%Z (2^255 - 19)%Z HleD (Zlt_succ_le d (2^60-1)%Z HDlt)).
     }
     split.
     2 :{
-      Search (_ + _ < _ + _)%Z.
-      apply (Z.lt_trans _ (2^316 - 2^255 + 2^89 - 19 * 2^60 + 19)%Z); try rewrite //.
+      apply (Z.lt_trans _ (2^316 - 2^255 + 2^89 - 19 * 2^60 + 19)%Z); try done.
       apply (Z.add_lt_le_mono x (2 ^ 315 + 2 ^ 89)%Z y (2 ^ 315 - 2 ^ 255 - 19 * 2 ^ 60 + 19)).
-      apply (Z.le_lt_trans _ ((Z.abs u + Z.abs v) * Z.max (Z.abs F) (Z.abs G))); try apply Z_mul_add_max; try apply Hxabs. try apply Hd_max.
+      apply (Z.le_lt_trans _ ((Z.abs u + Z.abs v) * Z.max (Z.abs F) (Z.abs G))); try apply Z_mul_add_max; apply Hxabs. apply Hd_max.
     }
-    rewrite -[(- 2 ^ 316)%Z]Z.add_0_r; apply (Z.add_lt_le_mono (- 2 ^ 316)%Z x 0%Z y); last by try apply (Z.mul_nonneg_nonneg _ _ HleD).
+    rewrite -[(- 2 ^ 316)%Z]Z.add_0_r; apply (Z.add_lt_le_mono (- 2 ^ 316)%Z x 0%Z y); last by apply (Z.mul_nonneg_nonneg _ _ HleD).
     apply (Z.lt_le_trans (- 2 ^ 316)%Z (-((Z.abs u + Z.abs v) * Z.max (Z.abs F) (Z.abs G)))%Z); last by apply Z_mul_add_min.
-    apply Z.opp_lt_mono; rewrite 2! Z.opp_involutive; apply (Z.lt_trans _ (2 ^ 315 + 2 ^ 89)%Z _ Hxabs); rewrite //.
+    apply Z.opp_lt_mono; rewrite 2! Z.opp_involutive; apply (Z.lt_trans _ (2 ^ 315 + 2 ^ 89)%Z _ Hxabs); try done.
   Qed.
 
 
